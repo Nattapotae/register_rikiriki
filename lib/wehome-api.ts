@@ -1,5 +1,12 @@
 const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
 
+// Temporary fallback for deployments where Vercel env vars are not set.
+// Prefer setting `WEHOME_AUTH_TOKEN` + `WEHOME_COMPANY_ID` in Vercel instead of hardcoding secrets.
+// const HARDCODED_WEHOME_AUTH_TOKEN = "paste-token-here";
+// const HARDCODED_WEHOME_COMPANY_ID = "1";
+const HARDCODED_WEHOME_AUTH_TOKEN = "";
+const HARDCODED_WEHOME_COMPANY_ID = "";
+
 export type WeHomeApiEnvelope<T> = {
   status?: number;
   message?: string;
@@ -26,9 +33,11 @@ export function getWeHomeAuthHeaders(): Record<string, string> {
   const authToken =
     process.env.WEHOME_AUTH_TOKEN?.trim() ||
     process.env.JWT_TOKEN_SECRET?.trim() ||
-    "";
+    HARDCODED_WEHOME_AUTH_TOKEN;
   const companyId =
-    process.env.WEHOME_COMPANY_ID?.trim() || process.env.COMPANY_ID?.trim() || "";
+    process.env.WEHOME_COMPANY_ID?.trim() ||
+    process.env.COMPANY_ID?.trim() ||
+    HARDCODED_WEHOME_COMPANY_ID;
 
   const headers: Record<string, string> = {};
   if (authToken) headers.authtoken = authToken;
@@ -48,6 +57,7 @@ export async function wehomeFetchJson<T>(
       ...init,
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
         ...getWeHomeAuthHeaders(),
         ...(init?.headers ?? {}),
       },

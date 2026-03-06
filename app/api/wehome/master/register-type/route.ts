@@ -4,12 +4,20 @@ import { WeHomeApiError, getWeHomeAuthHeaders, toSelectOptionsByKeys, type WeHom
 
 export async function GET() {
   const auth = getWeHomeAuthHeaders();
-  if (!auth.authtoken || !auth.companyid) {
-    return NextResponse.json({
-      options: [],
-      error: "Missing WEHOME_AUTH_TOKEN / WEHOME_COMPANY_ID on the server.",
-    });
-  }
+  const debug = {
+    baseUrl:
+      process.env.WEHOME_API_BASE_URL || "https://api-pos-wehome-test.gbhpos.com",
+    hasAuthtoken: Boolean(auth.authtoken),
+    hasCompanyId: Boolean(auth.companyid),
+  };
+  // Previous behavior (kept for reference):
+  // if (!auth.authtoken || !auth.companyid) {
+  //   return NextResponse.json({
+  //     options: [],
+  //     error: "Missing WEHOME_AUTH_TOKEN / WEHOME_COMPANY_ID on the server.",
+  //     debug,
+  //   });
+  // }
 
   try {
     const res = await wehomeFetchJson<WeHomeApiEnvelope<unknown>>(
@@ -23,6 +31,7 @@ export async function GET() {
       options: [],
       error: e instanceof Error ? e.message : "UPSTREAM_ERROR",
       upstreamStatus: e instanceof WeHomeApiError ? e.status : undefined,
+      debug,
     });
   }
 }
