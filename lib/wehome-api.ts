@@ -1,4 +1,4 @@
-// const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
+const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
 
 export type WeHomeApiEnvelope<T> = {
   status?: number;
@@ -6,8 +6,20 @@ export type WeHomeApiEnvelope<T> = {
   data?: T;
 };
 
+export class WeHomeApiError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`WeHome API ${status}: ${body}`);
+    this.name = "WeHomeApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export function getWeHomeBaseUrl() {
-  return process.env.WEHOME_API_BASE_URL?.trim();
+  return process.env.WEHOME_API_BASE_URL?.trim() || DEFAULT_BASE_URL;
 }
 
 export function getWeHomeAuthHeaders(): Record<string, string> {
@@ -29,19 +41,26 @@ export async function wehomeFetchJson<T>(
   init?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> }
 ): Promise<T> {
   const url = new URL(path, getWeHomeBaseUrl());
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...getWeHomeAuthHeaders(),
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...getWeHomeAuthHeaders(),
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`WeHome API network error: ${message}`);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`WeHome API ${res.status}: ${body}`);
+    throw new WeHomeApiError(res.status, body);
   }
 
   return (await res.json()) as T;

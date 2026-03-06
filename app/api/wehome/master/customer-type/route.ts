@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { toSelectOptionsByKeys, type WeHomeApiEnvelope, wehomeFetchJson } from "@/lib/wehome-api";
+import { WeHomeApiError, toSelectOptionsByKeys, type WeHomeApiEnvelope, wehomeFetchJson } from "@/lib/wehome-api";
 
 export async function GET() {
   try {
@@ -10,9 +10,10 @@ export async function GET() {
     const options = toSelectOptionsByKeys(res, "type_id", "type_name");
     return NextResponse.json({ options });
   } catch (e) {
+    console.error("[wehome master] customer-type", e);
     return NextResponse.json(
       { options: [], error: e instanceof Error ? e.message : "UPSTREAM_ERROR" },
-      { status: 502 }
+      { status: e instanceof WeHomeApiError ? e.status : 502 }
     );
   }
 }
