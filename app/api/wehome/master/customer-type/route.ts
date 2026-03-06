@@ -35,8 +35,9 @@ export async function GET() {
       {
         method: "GET",
         headers: {
-          ...auth,
-          Accept: "application/json",
+          authtoken:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb21wYW55aWQiOjEsInVzZXJuYW1lIjoidGVzdF93ZWhvbWUiLCJmdWxsbmFtZSI6InRlc3Rfd2Vob21lIiwibmlja25hbWUiOiJ0ZXN0X3dlaG9tZSIsImlhdCI6MTc3Mjc2NDE0NCwiZXhwIjoxNzcyODIxNzQ0fQ.lCpQ3-cqNUfGATCloGogg43oEVsI17diCpgBnZEIIOI",
+          companyid: "1",
+          "Content-Type": "application/json",
         },
       },
     );
