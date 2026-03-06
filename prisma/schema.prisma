@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Customer {
+  id String @id @default(cuid())
+
+  remoteCompanyId   String?
+  remoteCustomerId  String? @unique
+  remoteCustomerCode String?
+
+  customerCode      String @default("Running")
+  taxCode           String @default("")
+  idCard            String @default("")
+  titleId           String @default("7")
+  firstName         String @default("")
+  lastName          String @default("")
+  fullName          String
+  firstNameEng      String @default("")
+  lastNameEng       String @default("")
+  fullNameEng       String @default("")
+  fullAddress       String @default("")
+  mobile            String @unique
+  officePhone       String @default("")
+  birthday          DateTime?
+  genderId          String @default("1")
+  registerTypeId    String @default("1")
+  customerRankId    String @default("1")
+  customerTypeId    String @default("1")
+  religionId        String @default("4")
+  remark            String @default("")
+  lineId            String @default("")
+  fax               String @default("")
+  facebook          String @default("")
+  attachFile        String @default("")
+  chrageCreditActive Boolean @default(true)
+  dateNow           String @default("NOW()")
+  active            Boolean @default(true)
+  branchCode        String @default("HO")
+  suffixId          String @default("0")
+  seqbrchno         String @default("")
+  saveEmp           String @default("ADMIN0001")
+  saveName          String @default("ADMIN0001")
+  editEmp           String @default("ADMIN0001")
+  editName          String @default("ADMIN0001")
+  appName           String @default("ONLINE_APP")
+
+  rawRequest  Json?
+  rawResponse Json?
+
+  addresses CustomerAddress[]
+  emails    CustomerEmail[]
+  coupons   Coupon[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  listno          Int
+  isMain          Boolean
+  customerName    String @default("")
+  houseNo         String @default("")
+  street          String @default("")
+  villageId       Int    @default(0)
+  villageName     String @default("")
+  subdistrictId   Int    @default(0)
+  subdistrictName String @default("")
+  districtId      Int    @default(0)
+  districtName    String @default("")
+  provinceId      Int    @default(0)
+  provinceName    String @default("")
+  countryId       Int    @default(1)
+  countryName     String @default("")
+  zipcode         String @default("")
+  fullAddress     String @default("")
+  addressLatitude String @default("")
+  addressLongitude String @default("")
+
+  @@map("customer_addresses")
+}
+
+model CustomerEmail {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  email String
+
+  @@map("customer_emails")
+}
+
+model Coupon {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  companyId        Int?
+  branchCode       String @default("")
+  saleDocno        String @default("")
+  active           Boolean @default(true)
+  couponBarcode    String @default("")
+  couponId         Int?
+  pay              Boolean @default(false)
+  dateExpire       DateTime?
+  dateExpireLabel  String @default("")
+  discountValue    Int?
+  goodsBarcode     String @default("")
+  goodsName        String @default("")
+  proDocNo         String @default("")
+  proDocId         Int?
+  proItemsId       Int?
+  proDocTypeId     Int?
+  typeName         String @default("")
+  docNote          String @default("")
+  imgUrl           String @default("")
+
+  @@map("coupons")
+}
