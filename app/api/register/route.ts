@@ -272,17 +272,23 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
-  } catch (e) {
-    if (e instanceof WeHomeApiError) {
-      console.error("[wehome] InsertUpdateCustomer failed", {
-        status: e.status,
-        body: e.body,
-      });
-      return NextResponse.json(
-        { ok: false, error: "UPSTREAM_ERROR", upstreamStatus: e.status },
-        { status: 502 }
-      );
-    }
+	  } catch (e) {
+	    if (e instanceof WeHomeApiError) {
+	      console.error("[wehome] InsertUpdateCustomer failed", {
+	        status: e.status,
+	        body: e.body,
+	      });
+	      const isCloudflare =
+	        typeof e.body === "string" && e.body.includes("CLOUDFLARE_CHALLENGE");
+	      return NextResponse.json(
+	        {
+	          ok: false,
+	          error: isCloudflare ? "CLOUDFLARE_CHALLENGE" : "UPSTREAM_ERROR",
+	          upstreamStatus: e.status,
+	        },
+	        { status: 502 }
+	      );
+	    }
 
     console.error("[register] server error", e);
     return NextResponse.json({ ok: false, error: "SERVER_ERROR" }, { status: 500 });
