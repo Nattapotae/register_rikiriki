@@ -48,6 +48,7 @@ export async function wehomeFetchJson<T>(
       ...init,
       headers: {
         Accept: "application/json",
+        "Content-Type": "application/json",
         ...getWeHomeAuthHeaders(),
         ...(init?.headers ?? {}),
       },
