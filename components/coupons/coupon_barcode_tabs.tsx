@@ -65,10 +65,21 @@ function BarcodeSvg({ value }: { value: string }) {
   return <svg ref={ref} className="w-full" />;
 }
 
-export function CouponBarcodeTabs({ couponBarcode }: { couponBarcode: string }) {
+export function CouponBarcodeTabs({
+  couponBarcode,
+  discountValue,
+}: {
+  couponBarcode: string;
+  discountValue?: number | null;
+}) {
   const code = couponBarcode?.trim() ?? "";
   const [copied, setCopied] = React.useState(false);
   const qrWrapRef = React.useRef<HTMLDivElement | null>(null);
+
+  const discountText =
+    typeof discountValue === "number"
+      ? `${new Intl.NumberFormat("th-TH").format(discountValue)}.-`
+      : null;
 
   return (
     <Tabs defaultValue="qr">
@@ -129,13 +140,22 @@ export function CouponBarcodeTabs({ couponBarcode }: { couponBarcode: string }) 
       </TabsContent>
 
       <TabsContent value="qr">
-        <div className="grid gap-3 rounded-md border border-border bg-background p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-muted-foreground">QR</div>
+        <div className="rounded-lg border border-orange-200 bg-gradient-to-r from-orange-500 to-orange-400 p-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold leading-none">
+                รับคูปองส่วนลด
+              </div>
+              <div className="mt-1 text-xs text-white/85">
+                แคปหน้าจอ แล้วแจ้งพนักงานขาย
+              </div>
+            </div>
+
             <Button
               type="button"
               size="sm"
               variant="outline"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
               disabled={!code}
               onClick={() => {
                 const svg = qrWrapRef.current?.querySelector("svg") ?? null;
@@ -146,18 +166,43 @@ export function CouponBarcodeTabs({ couponBarcode }: { couponBarcode: string }) 
               บันทึกรูป
             </Button>
           </div>
-          <div ref={qrWrapRef} className="flex items-center justify-center">
-            {code ? (
-              <QRCodeSVG
-                value={code}
-                size={200}
-                includeMargin
-                bgColor="#ffffff"
-                fgColor="#111827"
-              />
-            ) : (
-              <div className="text-sm text-muted-foreground">ไม่มี coupon_barcode</div>
-            )}
+
+          <div className="mt-4 flex items-center gap-4">
+            <div className="shrink-0">
+              <div className="inline-flex items-center rounded-md bg-sky-500 px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                QR
+              </div>
+              <div
+                ref={qrWrapRef}
+                className="mt-2 rounded-md bg-white p-2 shadow-sm"
+              >
+                {code ? (
+                  <QRCodeSVG
+                    value={code}
+                    size={140}
+                    includeMargin
+                    bgColor="#ffffff"
+                    fgColor="#111827"
+                  />
+                ) : (
+                  <div className="p-3 text-sm text-slate-600">
+                    ไม่มี coupon_barcode
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 max-w-[180px] text-xs text-white/90">
+                Capture หน้าจอโทรศัพท์ &gt;&gt; นำภาพ QR ส่วนลดแจ้งพนักงานขาย
+              </div>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-white/90">
+                ส่วนลด
+              </div>
+              <div className="mt-1 text-4xl font-extrabold tracking-tight text-yellow-300 drop-shadow-sm">
+                {discountText ?? "-"}
+              </div>
+            </div>
           </div>
         </div>
       </TabsContent>

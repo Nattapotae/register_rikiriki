@@ -106,7 +106,10 @@ export default async function RegisterSuccessPage({
 		                    </div>
 
 		                    <div className="mt-3">
-		                      <CouponBarcodeTabs couponBarcode={c.couponBarcode} />
+		                      <CouponBarcodeTabs
+		                        couponBarcode={c.couponBarcode}
+		                        discountValue={c.discountValue}
+		                      />
 		                    </div>
 
 	                    {c.imgUrl ? (
