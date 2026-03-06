@@ -8,6 +8,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  type WeHomeApiEnvelope,
+  type WeHomeBrowserConfig,
+  getWeHomeBrowserConfigFromEnv,
+  wehomeBrowserFetchJsonWithConfig,
+} from "@/lib/wehome-browser";
 
 type Option = { value: string; label: string };
 
@@ -72,6 +78,32 @@ export default function LoginPage() {
   const [genders, setGenders] = React.useState<Option[]>([]);
   const [customerTypes, setCustomerTypes] = React.useState<Option[]>([]);
 
+  const [wehomeConfig, setWehomeConfig] =
+    React.useState<WeHomeBrowserConfig | null>(null);
+
+  React.useEffect(() => {
+    const envConfig = getWeHomeBrowserConfigFromEnv();
+    if (envConfig) {
+      setWehomeConfig(envConfig);
+      return;
+    }
+
+    fetch("/api/wehome/client-config")
+      .then((r) => r.json())
+      .then((json) => {
+        const baseUrl = typeof json?.baseUrl === "string" ? json.baseUrl : "";
+        const authtoken =
+          typeof json?.authtoken === "string" ? json.authtoken : "";
+        const companyid =
+          typeof json?.companyid === "string" ? json.companyid : "";
+
+        if (baseUrl && authtoken && companyid) {
+          setWehomeConfig({ baseUrl, authtoken, companyid });
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
   const [form, setForm] = React.useState({
     phone: "",
     registerTypeId: "1",
@@ -85,11 +117,41 @@ export default function LoginPage() {
     setMastersWarning({});
 
     try {
-      const [rt, g, ct] = await Promise.all([
-        fetch("/api/wehome/master/register-type").then((r) => r.json()),
-        fetch("/api/wehome/master/gender").then((r) => r.json()),
-        fetch("/api/wehome/master/customer-type").then((r) => r.json()),
-      ]);
+      let rt: unknown;
+      let g: unknown;
+      let ct: unknown;
+
+      if (wehomeConfig) {
+        try {
+          [rt, g, ct] = await Promise.all([
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getRegisterType"
+            ),
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getGender"
+            ),
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getCustomerType"
+            ),
+          ]);
+        } catch (e) {
+          console.warn("[wehome browser] master fetch failed; fallback to local api", e);
+          [rt, g, ct] = await Promise.all([
+            fetch("/api/wehome/master/register-type").then((r) => r.json()),
+            fetch("/api/wehome/master/gender").then((r) => r.json()),
+            fetch("/api/wehome/master/customer-type").then((r) => r.json()),
+          ]);
+        }
+      } else {
+        [rt, g, ct] = await Promise.all([
+          fetch("/api/wehome/master/register-type").then((r) => r.json()),
+          fetch("/api/wehome/master/gender").then((r) => r.json()),
+          fetch("/api/wehome/master/customer-type").then((r) => r.json()),
+        ]);
+      }
 
       setRegisterTypes(extractOptions(rt, "type_id", "type_name"));
       setGenders(extractOptions(g, "gender_id", "gender_name"));
@@ -118,7 +180,7 @@ export default function LoginPage() {
     } finally {
       setIsLoadingMasters(false);
     }
-  }, []);
+  }, [wehomeConfig]);
 
   React.useEffect(() => {
     void loadMasters();

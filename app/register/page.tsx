@@ -22,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  WeHomeBrowserError,
+  type WeHomeApiEnvelope,
+  type WeHomeBrowserConfig,
+  getWeHomeBrowserConfigFromEnv,
+  wehomeBrowserFetchJsonWithConfig,
+} from "@/lib/wehome-browser";
 
 type Option = { value: string; label: string };
 
@@ -97,17 +104,79 @@ export default function RegisterPage() {
     customerTypeId: "1",
   });
 
+  const [wehomeConfig, setWehomeConfig] =
+    React.useState<WeHomeBrowserConfig | null>(null);
+  const [canCallWeHomeFromBrowser, setCanCallWeHomeFromBrowser] =
+    React.useState<boolean | null>(null);
+
+  React.useEffect(() => {
+    const envConfig = getWeHomeBrowserConfigFromEnv();
+    if (envConfig) {
+      setWehomeConfig(envConfig);
+      setCanCallWeHomeFromBrowser(true);
+      return;
+    }
+
+    fetch("/api/wehome/client-config")
+      .then((r) => r.json())
+      .then((json) => {
+        const baseUrl = typeof json?.baseUrl === "string" ? json.baseUrl : "";
+        const authtoken =
+          typeof json?.authtoken === "string" ? json.authtoken : "";
+        const companyid =
+          typeof json?.companyid === "string" ? json.companyid : "";
+
+        if (baseUrl && authtoken && companyid) {
+          setWehomeConfig({ baseUrl, authtoken, companyid });
+          setCanCallWeHomeFromBrowser(true);
+        } else {
+          setCanCallWeHomeFromBrowser(false);
+        }
+      })
+      .catch(() => setCanCallWeHomeFromBrowser(false));
+  }, []);
+
   const loadMasters = React.useCallback(async () => {
     setIsLoadingMasters(true);
     setMastersError({});
     setMastersWarning({});
 
     try {
-      const [rt, g, ct] = await Promise.all([
-        fetch("/api/wehome/master/register-type").then((r) => r.json()),
-        fetch("/api/wehome/master/gender").then((r) => r.json()),
-        fetch("/api/wehome/master/customer-type").then((r) => r.json()),
-      ]);
+      let rt: unknown;
+      let g: unknown;
+      let ct: unknown;
+
+      if (wehomeConfig) {
+        try {
+          [rt, g, ct] = await Promise.all([
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getRegisterType"
+            ),
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getGender"
+            ),
+            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+              wehomeConfig,
+              "/thirdParty/member/master/getCustomerType"
+            ),
+          ]);
+        } catch (e) {
+          console.warn("[wehome browser] master fetch failed; fallback to local api", e);
+          [rt, g, ct] = await Promise.all([
+            fetch("/api/wehome/master/register-type").then((r) => r.json()),
+            fetch("/api/wehome/master/gender").then((r) => r.json()),
+            fetch("/api/wehome/master/customer-type").then((r) => r.json()),
+          ]);
+        }
+      } else {
+        [rt, g, ct] = await Promise.all([
+          fetch("/api/wehome/master/register-type").then((r) => r.json()),
+          fetch("/api/wehome/master/gender").then((r) => r.json()),
+          fetch("/api/wehome/master/customer-type").then((r) => r.json()),
+        ]);
+      }
 
       setRegisterTypes(extractOptions(rt, "type_id", "type_name"));
       setGenders(extractOptions(g, "gender_id", "gender_name"));
@@ -136,41 +205,11 @@ export default function RegisterPage() {
     } finally {
       setIsLoadingMasters(false);
     }
-  }, []);
+  }, [wehomeConfig]);
 
   React.useEffect(() => {
     void loadMasters();
   }, [loadMasters]);
- const [data, setData] = React.useState<any>(null);
-   React.useEffect(() => {
-    const fetchCustomerType = async () => {
-      try {
-        const res = await fetch(
-          "https://api-pos-wehome-test.gbhpos.com/thirdParty/member/master/getCustomerType",
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              authtoken:
-                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb21wYW55aWQiOjEsInVzZXJuYW1lIjoidGVzdF93ZWhvbWUiLCJmdWxsbmFtZSI6InRlc3Rfd2Vob21lIiwibmlja25hbWUiOiJ0ZXN0X3dlaG9tZSIsImlhdCI6MTc3Mjc2NDE0NCwiZXhwIjoxNzcyODIxNzQ0fQ.lCpQ3-cqNUfGATCloGogg43oEVsI17diCpgBnZEIIOI",
-              companyid: "1",
-            },
-            cache: "no-store",
-          }
-        );
-
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchCustomerType();
-  }, []);
-
-  console.log("Customer Type Data:", data);
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <Card className="w-full max-w-md">
@@ -179,53 +218,148 @@ export default function RegisterPage() {
           <CardDescription>กรอกข้อมูลเพื่อสมัครสมาชิก</CardDescription>
         </CardHeader>
         <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError(null);
-            setIsSubmitting(true);
+	          onSubmit={async (e) => {
+	            e.preventDefault();
+	            setError(null);
+	            setIsSubmitting(true);
 
-            try {
-              const res = await fetch("/api/register", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
-              });
+	            try {
+	              const preflight = await fetch("/api/register/preflight", {
+	                method: "POST",
+	                headers: { "Content-Type": "application/json" },
+	                body: JSON.stringify({ phone: form.phone }),
+	              }).then((r) => r.json().catch(() => null));
 
-              const data = (await res.json().catch(() => null)) as
-                | { ok: true; id: string }
-                | { ok: false; error: string }
-                | null;
-
-              if (res.ok && data && data.ok && typeof data.id === "string") {
-                router.push(
-                  `/register/success?id=${encodeURIComponent(data.id)}`,
-                );
-                return;
-              }
-
-	              if (data && data?.ok === false && data?.error === "PHONE_TAKEN") {
+	              if (preflight && preflight.ok === false && preflight.error === "PHONE_TAKEN") {
 	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
 	                return;
 	              }
 
-	              if (
-	                data &&
-	                data?.ok === false &&
-	                data?.error === "CLOUDFLARE_CHALLENGE"
-	              ) {
-	                setError(
-	                  "WeHome API ถูก Cloudflare บล็อกบน Vercel (403/Just a moment). ต้องให้ฝั่ง WeHome/Cloudflare ปลด challenge สำหรับ API หรือทำ proxy ที่ไม่โดนบล็อก"
-	                );
+		              if (!wehomeConfig) {
+		                setError(
+		                  "ยังไม่มีค่า WeHome token/companyId สำหรับฝั่ง client (เช็ค NEXT_PUBLIC_WEHOME_AUTH_TOKEN/NEXT_PUBLIC_WEHOME_COMPANY_ID หรือเช็ค server env: JWT_TOKEN_SECRET/COMPANY_ID)"
+		                );
+		                return;
+		              }
+
+	              const parts = form.fullName.trim().split(/\s+/).filter(Boolean);
+	              const firstName = parts[0] ?? "";
+	              const lastName = parts.slice(1).join(" ");
+
+	              const wehomeRequest = {
+	                customer_id: "0",
+	                customer_code: "Running",
+	                tax_code: "XXXXXXXXXXXXX",
+	                id_card: "XXXXXXXXXXXXX",
+	                title_id: "7",
+	                first_name: firstName,
+	                last_name: lastName,
+	                full_name: form.fullName,
+	                first_name_eng: firstName,
+	                last_name_eng: lastName,
+	                full_name_eng: form.fullName,
+	                full_address: "ทดสอบ API",
+	                mobile: form.phone,
+	                office_phone: "",
+	                birthday: "2000-01-01",
+	                gender_id: form.genderId,
+	                register_type_id: form.registerTypeId,
+	                customer_rank_id: "1",
+	                customer_type_id: form.customerTypeId,
+	                religion_id: "4",
+	                remark: "",
+	                line_id: "",
+	                fax: "",
+	                facebook: "",
+	                attach_file: "",
+	                chrage_credit_active: true,
+	                date_now: "NOW()",
+	                active: true,
+	                branch_code: "00016CB",
+	                suffix_id: "0",
+	                seqbrchno: "",
+	                save_emp: "ADMIN0001",
+	                save_name: "ADMIN0001",
+	                edit_emp: "ADMIN0001",
+	                edit_name: "ADMIN0001",
+	                app_name: "ONLINE_APP",
+	                customer_address_list: [
+	                  {
+	                    listno: 1,
+	                    is_main: true,
+	                    customer_name: form.fullName,
+	                    house_no: "",
+	                    street: "",
+	                    village_id: 0,
+	                    village_name: "",
+	                    subdistrict_id: 24,
+	                    subdistrict_name: "",
+	                    district_id: 3,
+	                    district_name: "",
+	                    province_id: 1,
+	                    province_name: "",
+	                    country_id: 1,
+	                    country_name: "",
+	                    zipcode: "",
+	                    full_address: "",
+	                    address_latitude: "",
+	                    address_longitude: "",
+	                  },
+	                ],
+	                customer_email_list: [{ email: form.email.toLowerCase() }],
+	                approve_list: [],
+	              };
+
+		              let wehomeResponse: unknown;
+		              try {
+		                wehomeResponse = await wehomeBrowserFetchJsonWithConfig<unknown>(
+		                  wehomeConfig,
+		                  "/thirdParty/member/customer/InsertUpdateCustomer",
+		                  { method: "POST", body: JSON.stringify(wehomeRequest) }
+		                );
+		              } catch (e) {
+	                if (e instanceof WeHomeBrowserError && e.body.includes("CLOUDFLARE_CHALLENGE")) {
+	                  setError(
+	                    "WeHome API ตอบกลับเป็นหน้า Cloudflare (Just a moment). ถ้ายังไม่ผ่าน ให้ลองเปิด API ในแท็บใหม่ 1 ครั้ง แล้วกลับมากดสมัครใหม่"
+	                  );
+	                  return;
+	                }
+	                setError("เรียก WeHome API ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
 	                return;
 	              }
 
-              setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-            } catch {
-              setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง");
-            } finally {
-              setIsSubmitting(false);
-            }
-          }}
+	              const finalizeRes = await fetch("/api/register/finalize", {
+	                method: "POST",
+	                headers: { "Content-Type": "application/json" },
+	                body: JSON.stringify({
+	                  form,
+	                  wehomeRequest,
+	                  wehomeResponse,
+	                }),
+	              });
+
+	              const finalize = (await finalizeRes.json().catch(() => null)) as
+	                | { ok: true; id: string }
+	                | { ok: false; error: string }
+	                | null;
+
+	              if (finalizeRes.ok && finalize && finalize.ok && typeof finalize.id === "string") {
+	                router.push(`/register/success?id=${encodeURIComponent(finalize.id)}`);
+	                return;
+	              }
+
+	              if (finalize && finalize.ok === false && finalize.error === "PHONE_TAKEN") {
+	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
+	                return;
+	              }
+
+	              setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+	            } catch {
+	              setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง");
+	            } finally {
+	              setIsSubmitting(false);
+	            }
+	          }}
         >
           <CardContent className="grid gap-4">
             {mastersWarning.registerType ||
@@ -436,10 +570,23 @@ export default function RegisterPage() {
 	            </div>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
-          <CardFooter className="justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "กำลังบันทึก..." : "สมัครสมาชิก"}
-            </Button>
+          <CardFooter className="flex flex-col items-end gap-2">
+	            <Button
+	              type="submit"
+	              disabled={isSubmitting || canCallWeHomeFromBrowser === null}
+	            >
+	              {isSubmitting ? "กำลังบันทึก..." : "สมัครสมาชิก"}
+	            </Button>
+	            {canCallWeHomeFromBrowser === null ? (
+	              <p className="text-right text-xs text-muted-foreground">
+	                กำลังเตรียม WeHome config...
+	              </p>
+	            ) : null}
+	            {canCallWeHomeFromBrowser === false ? (
+	              <p className="text-right text-xs text-muted-foreground">
+	                WeHome client config: missing token/companyId
+	              </p>
+	            ) : null}
           </CardFooter>
         </form>
       </Card>
