@@ -23,6 +23,13 @@ function hashCode(phone: string, code: string) {
 }
 
 export async function POST(req: Request) {
+  if (process.env.OTP_ENABLED?.trim() !== "true") {
+    return NextResponse.json(
+      { ok: false, error: "OTP_DISABLED" },
+      { status: 404 }
+    );
+  }
+
   const body = (await req.json().catch(() => null)) as unknown;
   const record =
     body && typeof body === "object" ? (body as Record<string, unknown>) : null;
