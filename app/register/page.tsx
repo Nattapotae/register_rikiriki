@@ -11,10 +11,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-	} from "@/components/ui/card";
+} from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-	import { Input } from "@/components/ui/input";
-	import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -61,11 +61,12 @@ function extractOptions(
     .filter((x): x is Option => Boolean(x));
 }
 
-function extractError(payload: unknown): string | null {
+function extractMessage(payload: unknown, key: "error" | "warning"): string | null {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as Record<string, unknown>;
-  return typeof record.error === "string" && record.error.trim()
-    ? record.error.trim()
+  const raw = record[key];
+  return typeof raw === "string" && raw.trim()
+    ? raw.trim()
     : null;
 }
 
@@ -75,6 +76,11 @@ export default function RegisterPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
   const [mastersError, setMastersError] = React.useState<{
+    registerType?: string;
+    gender?: string;
+    customerType?: string;
+  }>({});
+  const [mastersWarning, setMastersWarning] = React.useState<{
     registerType?: string;
     gender?: string;
     customerType?: string;
@@ -94,6 +100,7 @@ export default function RegisterPage() {
   const loadMasters = React.useCallback(async () => {
     setIsLoadingMasters(true);
     setMastersError({});
+    setMastersWarning({});
 
     try {
       const [rt, g, ct] = await Promise.all([
@@ -107,9 +114,14 @@ export default function RegisterPage() {
       setCustomerTypes(extractOptions(ct, "type_id", "type_name"));
 
       setMastersError({
-        registerType: extractError(rt) ?? undefined,
-        gender: extractError(g) ?? undefined,
-        customerType: extractError(ct) ?? undefined,
+        registerType: extractMessage(rt, "error") ?? undefined,
+        gender: extractMessage(g, "error") ?? undefined,
+        customerType: extractMessage(ct, "error") ?? undefined,
+      });
+      setMastersWarning({
+        registerType: extractMessage(rt, "warning") ?? undefined,
+        gender: extractMessage(g, "warning") ?? undefined,
+        customerType: extractMessage(ct, "warning") ?? undefined,
       });
     } catch {
       setRegisterTypes([]);
@@ -120,6 +132,7 @@ export default function RegisterPage() {
         gender: "โหลด Gender ไม่สำเร็จ",
         customerType: "โหลด Customer Type ไม่สำเร็จ",
       });
+      setMastersWarning({});
     } finally {
       setIsLoadingMasters(false);
     }
@@ -128,6 +141,35 @@ export default function RegisterPage() {
   React.useEffect(() => {
     void loadMasters();
   }, [loadMasters]);
+ const [data, setData] = React.useState<any>(null);
+   React.useEffect(() => {
+    const fetchCustomerType = async () => {
+      try {
+        const res = await fetch(
+          "https://api-pos-wehome-test.gbhpos.com/thirdParty/member/master/getCustomerType",
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              authtoken:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb21wYW55aWQiOjEsInVzZXJuYW1lIjoidGVzdF93ZWhvbWUiLCJmdWxsbmFtZSI6InRlc3Rfd2Vob21lIiwibmlja25hbWUiOiJ0ZXN0X3dlaG9tZSIsImlhdCI6MTc3Mjc2NDE0NCwiZXhwIjoxNzcyODIxNzQ0fQ.lCpQ3-cqNUfGATCloGogg43oEVsI17diCpgBnZEIIOI",
+              companyid: "1",
+            },
+            cache: "no-store",
+          }
+        );
+
+        const json = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchCustomerType();
+  }, []);
+
+  console.log("Customer Type Data:", data);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
@@ -161,10 +203,21 @@ export default function RegisterPage() {
                 return;
               }
 
-              if (data && data?.ok === false && data?.error === "PHONE_TAKEN") {
-                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
-                return;
-              }
+	              if (data && data?.ok === false && data?.error === "PHONE_TAKEN") {
+	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
+	                return;
+	              }
+
+	              if (
+	                data &&
+	                data?.ok === false &&
+	                data?.error === "CLOUDFLARE_CHALLENGE"
+	              ) {
+	                setError(
+	                  "WeHome API ถูก Cloudflare บล็อกบน Vercel (403/Just a moment). ต้องให้ฝั่ง WeHome/Cloudflare ปลด challenge สำหรับ API หรือทำ proxy ที่ไม่โดนบล็อก"
+	                );
+	                return;
+	              }
 
               setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
             } catch {
@@ -175,6 +228,37 @@ export default function RegisterPage() {
           }}
         >
           <CardContent className="grid gap-4">
+            {mastersWarning.registerType ||
+            mastersWarning.gender ||
+            mastersWarning.customerType ? (
+              <Alert>
+                <AlertTitle>ใช้ข้อมูลสำรองสำหรับ Dropdown</AlertTitle>
+                <AlertDescription>
+                  <div className="grid gap-1">
+                    {mastersWarning.registerType ? (
+                      <div>Register Type: {mastersWarning.registerType}</div>
+                    ) : null}
+                    {mastersWarning.gender ? (
+                      <div>Gender: {mastersWarning.gender}</div>
+                    ) : null}
+                    {mastersWarning.customerType ? (
+                      <div>Customer Type: {mastersWarning.customerType}</div>
+                    ) : null}
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadMasters()}
+                      >
+                        ลองโหลดใหม่
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
             {mastersError.registerType ||
             mastersError.gender ||
             mastersError.customerType ? (
@@ -280,6 +364,10 @@ export default function RegisterPage() {
 	                <p className="text-xs text-destructive">
 	                  {mastersError.registerType}
 	                </p>
+	              ) : mastersWarning.registerType ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.registerType}
+	                </p>
 	              ) : null}
 	            </div>
             <div className="grid gap-2">
@@ -307,6 +395,10 @@ export default function RegisterPage() {
 	              </Select>
 	              {mastersError.gender ? (
 	                <p className="text-xs text-destructive">{mastersError.gender}</p>
+	              ) : mastersWarning.gender ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.gender}
+	                </p>
 	              ) : null}
 	            </div>
             <div className="grid gap-2">
@@ -335,6 +427,10 @@ export default function RegisterPage() {
 	              {mastersError.customerType ? (
 	                <p className="text-xs text-destructive">
 	                  {mastersError.customerType}
+	                </p>
+	              ) : mastersWarning.customerType ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.customerType}
 	                </p>
 	              ) : null}
 	            </div>

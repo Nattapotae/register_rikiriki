@@ -47,17 +47,23 @@ function extractOptions(
     .filter((x): x is Option => Boolean(x));
 }
 
-function extractError(payload: unknown): string | null {
+function extractMessage(payload: unknown, key: "error" | "warning"): string | null {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as Record<string, unknown>;
-  return typeof record.error === "string" && record.error.trim()
-    ? record.error.trim()
+  const raw = record[key];
+  return typeof raw === "string" && raw.trim()
+    ? raw.trim()
     : null;
 }
 
 export default function LoginPage() {
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
   const [mastersError, setMastersError] = React.useState<{
+    registerType?: string;
+    gender?: string;
+    customerType?: string;
+  }>({});
+  const [mastersWarning, setMastersWarning] = React.useState<{
     registerType?: string;
     gender?: string;
     customerType?: string;
@@ -76,6 +82,7 @@ export default function LoginPage() {
   const loadMasters = React.useCallback(async () => {
     setIsLoadingMasters(true);
     setMastersError({});
+    setMastersWarning({});
 
     try {
       const [rt, g, ct] = await Promise.all([
@@ -89,9 +96,14 @@ export default function LoginPage() {
       setCustomerTypes(extractOptions(ct, "type_id", "type_name"));
 
       setMastersError({
-        registerType: extractError(rt) ?? undefined,
-        gender: extractError(g) ?? undefined,
-        customerType: extractError(ct) ?? undefined,
+        registerType: extractMessage(rt, "error") ?? undefined,
+        gender: extractMessage(g, "error") ?? undefined,
+        customerType: extractMessage(ct, "error") ?? undefined,
+      });
+      setMastersWarning({
+        registerType: extractMessage(rt, "warning") ?? undefined,
+        gender: extractMessage(g, "warning") ?? undefined,
+        customerType: extractMessage(ct, "warning") ?? undefined,
       });
     } catch {
       setRegisterTypes([]);
@@ -102,6 +114,7 @@ export default function LoginPage() {
         gender: "โหลด Gender ไม่สำเร็จ",
         customerType: "โหลด Customer Type ไม่สำเร็จ",
       });
+      setMastersWarning({});
     } finally {
       setIsLoadingMasters(false);
     }
@@ -122,13 +135,44 @@ export default function LoginPage() {
           onSubmit={(e) => {
             e.preventDefault();
           }}
-        >
-          <CardContent className="grid gap-4">
-            {mastersError.registerType ||
-            mastersError.gender ||
-            mastersError.customerType ? (
-              <Alert variant="destructive">
-                <AlertTitle>โหลดข้อมูลสำหรับ Dropdown ไม่สำเร็จ</AlertTitle>
+	        >
+	          <CardContent className="grid gap-4">
+	            {mastersWarning.registerType ||
+	            mastersWarning.gender ||
+	            mastersWarning.customerType ? (
+	              <Alert>
+	                <AlertTitle>ใช้ข้อมูลสำรองสำหรับ Dropdown</AlertTitle>
+	                <AlertDescription>
+	                  <div className="grid gap-1">
+	                    {mastersWarning.registerType ? (
+	                      <div>Register Type: {mastersWarning.registerType}</div>
+	                    ) : null}
+	                    {mastersWarning.gender ? (
+	                      <div>Gender: {mastersWarning.gender}</div>
+	                    ) : null}
+	                    {mastersWarning.customerType ? (
+	                      <div>Customer Type: {mastersWarning.customerType}</div>
+	                    ) : null}
+	                    <div className="mt-2">
+	                      <Button
+	                        type="button"
+	                        variant="outline"
+	                        size="sm"
+	                        onClick={() => void loadMasters()}
+	                      >
+	                        ลองโหลดใหม่
+	                      </Button>
+	                    </div>
+	                  </div>
+	                </AlertDescription>
+	              </Alert>
+	            ) : null}
+
+	            {mastersError.registerType ||
+	            mastersError.gender ||
+	            mastersError.customerType ? (
+	              <Alert variant="destructive">
+	                <AlertTitle>โหลดข้อมูลสำหรับ Dropdown ไม่สำเร็จ</AlertTitle>
                 <AlertDescription>
                   <div className="grid gap-1">
                     {mastersError.registerType ? (
@@ -168,8 +212,8 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label>Register Type</Label>
+	            <div className="grid gap-2">
+	              <Label>Register Type</Label>
               <Select
                 value={form.registerTypeId}
                 onValueChange={(v) =>
@@ -190,13 +234,17 @@ export default function LoginPage() {
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
-              {mastersError.registerType ? (
-                <p className="text-xs text-destructive">
-                  {mastersError.registerType}
-                </p>
-              ) : null}
-            </div>
+	              </Select>
+	              {mastersError.registerType ? (
+	                <p className="text-xs text-destructive">
+	                  {mastersError.registerType}
+	                </p>
+	              ) : mastersWarning.registerType ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.registerType}
+	                </p>
+	              ) : null}
+	            </div>
 
             <div className="grid gap-2">
               <Label>Gender</Label>
@@ -217,11 +265,15 @@ export default function LoginPage() {
                     )
                   )}
                 </SelectContent>
-              </Select>
-              {mastersError.gender ? (
-                <p className="text-xs text-destructive">{mastersError.gender}</p>
-              ) : null}
-            </div>
+	              </Select>
+	              {mastersError.gender ? (
+	                <p className="text-xs text-destructive">{mastersError.gender}</p>
+	              ) : mastersWarning.gender ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.gender}
+	                </p>
+	              ) : null}
+	            </div>
 
             <div className="grid gap-2">
               <Label>Customer Type</Label>
@@ -245,13 +297,17 @@ export default function LoginPage() {
                     </SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
-              {mastersError.customerType ? (
-                <p className="text-xs text-destructive">
-                  {mastersError.customerType}
-                </p>
-              ) : null}
-            </div>
+	              </Select>
+	              {mastersError.customerType ? (
+	                <p className="text-xs text-destructive">
+	                  {mastersError.customerType}
+	                </p>
+	              ) : mastersWarning.customerType ? (
+	                <p className="text-xs text-muted-foreground">
+	                  {mastersWarning.customerType}
+	                </p>
+	              ) : null}
+	            </div>
           </CardContent>
           <CardFooter className="justify-end">
             <Button type="submit" variant="secondary">

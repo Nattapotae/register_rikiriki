@@ -25,6 +25,22 @@ export class WeHomeApiError extends Error {
   }
 }
 
+function looksLikeCloudflareChallenge(contentType: string | null, body: string) {
+  if (!contentType?.toLowerCase().includes("text/html")) return false;
+  const b = body.toLowerCase();
+  return (
+    b.includes("just a moment") ||
+    b.includes("cdn-cgi/challenge-platform") ||
+    b.includes("window._cf_chl_opt") ||
+    b.includes("__cf_chl")
+  );
+}
+
+function truncate(text: string, max = 600) {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}...`;
+}
+
 export function getWeHomeBaseUrl() {
   return process.env.WEHOME_API_BASE_URL?.trim() || DEFAULT_BASE_URL;
 }
@@ -69,8 +85,17 @@ export async function wehomeFetchJson<T>(
   }
 
   if (!res.ok) {
+    const contentType = res.headers.get("content-type");
     const body = await res.text().catch(() => "");
-    throw new WeHomeApiError(res.status, body);
+
+    if (looksLikeCloudflareChallenge(contentType, body)) {
+      throw new WeHomeApiError(
+        res.status,
+        "CLOUDFLARE_CHALLENGE: Upstream is returning a Cloudflare browser challenge page. This cannot be fetched from server-to-server environments like Vercel Functions."
+      );
+    }
+
+    throw new WeHomeApiError(res.status, truncate(body));
   }
 
   return (await res.json()) as T;
