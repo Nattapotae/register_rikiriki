@@ -10,13 +10,14 @@ export async function GET() {
     hasAuthtoken: Boolean(auth.authtoken),
     hasCompanyId: Boolean(auth.companyid),
   };
-  if (!auth.authtoken || !auth.companyid) {
-    return NextResponse.json({
-      options: [],
-      error: "Missing WEHOME_AUTH_TOKEN / WEHOME_COMPANY_ID on the server.",
-      debug,
-    });
-  }
+  // Previous behavior (kept for reference):
+  // if (!auth.authtoken || !auth.companyid) {
+  //   return NextResponse.json({
+  //     options: [],
+  //     error: "Missing WEHOME_AUTH_TOKEN / WEHOME_COMPANY_ID on the server.",
+  //     debug,
+  //   });
+  // }
 
   try {
     const res = await wehomeFetchJson<WeHomeApiEnvelope<unknown>>(
