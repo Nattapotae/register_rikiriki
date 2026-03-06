@@ -142,7 +142,7 @@ export default function RegisterPage() {
                 return;
               }
 
-              if (data && !data.ok && data.error === "PHONE_TAKEN") {
+              if (data && data?.ok === false && data?.error === "PHONE_TAKEN") {
                 setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
                 return;
               }
