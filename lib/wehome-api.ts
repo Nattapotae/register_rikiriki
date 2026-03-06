@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
+// const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
 
 // Temporary fallback for deployments where Vercel env vars are not set.
 // Prefer setting `WEHOME_AUTH_TOKEN` + `WEHOME_COMPANY_ID` in Vercel instead of hardcoding secrets.
@@ -42,7 +42,7 @@ function truncate(text: string, max = 600) {
 }
 
 export function getWeHomeBaseUrl() {
-  return process.env.WEHOME_API_BASE_URL?.trim() || DEFAULT_BASE_URL;
+  return process.env.WEHOME_API_BASE_URL?.trim();
 }
 
 export function getWeHomeAuthHeaders(): Record<string, string> {

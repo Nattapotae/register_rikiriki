@@ -34,6 +34,8 @@ import {
 
 type Option = { value: string; label: string };
 
+const OTP_ENABLED = process.env.NEXT_PUBLIC_OTP_ENABLED?.trim() === "true";
+
 function extractOptions(
   payload: unknown,
   valueKey: string,
@@ -89,7 +91,7 @@ export default function RegisterPage() {
   const [isRequestingOtp, setIsRequestingOtp] = React.useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = React.useState(false);
   const [otpCode, setOtpCode] = React.useState("");
-  const [isPhoneVerified, setIsPhoneVerified] = React.useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = React.useState(!OTP_ENABLED);
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
   const [mastersError, setMastersError] = React.useState<{
     registerType?: string;
@@ -202,6 +204,7 @@ export default function RegisterPage() {
   }, [canCallWeHomeFromBrowser, loadMasters]);
 
   React.useEffect(() => {
+    if (!OTP_ENABLED) return;
     // reset OTP state when phone changes
     setIsPhoneVerified(false);
     setOtpCode("");
@@ -210,6 +213,7 @@ export default function RegisterPage() {
   }, [form.phone]);
 
   async function requestOtp() {
+    if (!OTP_ENABLED) return;
     setOtpError(null);
     setOtpStatus(null);
 
@@ -259,6 +263,7 @@ export default function RegisterPage() {
   }
 
   async function verifyOtp() {
+    if (!OTP_ENABLED) return;
     setOtpError(null);
     setOtpStatus(null);
 
@@ -325,11 +330,11 @@ export default function RegisterPage() {
 		            setSubmitStatus("กำลังตรวจสอบเบอร์โทร...");
 		            setIsSubmitting(true);
 
-		            try {
-		              if (!isPhoneVerified) {
-		                setError("กรุณายืนยันเบอร์โทรด้วย OTP ก่อนสมัคร");
-		                return;
-		              }
+			            try {
+			              if (OTP_ENABLED && !isPhoneVerified) {
+			                setError("กรุณายืนยันเบอร์โทรด้วย OTP ก่อนสมัคร");
+			                return;
+			              }
 
 		              const preflight = await fetch("/api/register/preflight", {
 		                method: "POST",
@@ -452,16 +457,21 @@ export default function RegisterPage() {
 	                | { ok: false; error: string }
 	                | null;
 
-		              if (finalizeRes.ok && finalize && finalize.ok && typeof finalize.id === "string") {
-		                setSubmitStatus("สำเร็จ กำลังไปหน้าคูปอง...");
-		                router.push(`/register/success?id=${encodeURIComponent(finalize.id)}`);
+			              if (finalizeRes.ok && finalize && finalize.ok && typeof finalize.id === "string") {
+			                setSubmitStatus("สำเร็จ กำลังไปหน้าคูปอง...");
+			                router.push(`/register/success?id=${encodeURIComponent(finalize.id)}`);
+			                return;
+			              }
+
+		              if (finalize && finalize.ok === false && finalize.error === "OTP_REQUIRED") {
+		                setError("กรุณายืนยันเบอร์โทรด้วย OTP ก่อนสมัคร");
 		                return;
 		              }
 
-	              if (finalize && finalize.ok === false && finalize.error === "PHONE_TAKEN") {
-	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
-	                return;
-	              }
+		              if (finalize && finalize.ok === false && finalize.error === "PHONE_TAKEN") {
+		                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
+		                return;
+		              }
 
 		              setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
 		            } catch {
@@ -536,85 +546,93 @@ export default function RegisterPage() {
             </div>
 	            <div className="grid gap-2">
 	              <Label htmlFor="phone">เบอร์โทร</Label>
-	              <Input
+		              <Input
                 id="phone"
                 name="phone"
                 type="tel"
                 placeholder="เช่น 0812345678"
                 autoComplete="tel"
                 inputMode="tel"
-	                required
-	                disabled={isSubmitting || isPhoneVerified}
-	                value={form.phone}
-	                onChange={(e) =>
-	                  setForm((prev) => ({ ...prev, phone: e.target.value }))
-	                }
-	              />
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isSubmitting || isRequestingOtp || isPhoneVerified}
-                    onClick={() => void requestOtp()}
-                  >
-                    {isRequestingOtp ? (
-                      <span className="inline-flex items-center">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        กำลังส่ง...
-                      </span>
-                    ) : (
-                      "ส่ง OTP"
-                    )}
-                  </Button>
-                  {isPhoneVerified ? (
-                    <span className="text-xs font-medium text-emerald-700">
-                      ยืนยันแล้ว
-                    </span>
-                  ) : null}
-                </div>
-                {!isPhoneVerified ? (
-                  <div className="grid gap-2">
-                    <div className="grid gap-1">
-                      <Label htmlFor="otp" className="text-xs">
-                        OTP (6 หลัก)
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="otp"
-                          name="otp"
-                          inputMode="numeric"
-                          placeholder="123456"
-                          value={otpCode}
-                          disabled={isSubmitting || isVerifyingOtp}
-                          onChange={(e) => setOtpCode(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={isSubmitting || isVerifyingOtp}
-                          onClick={() => void verifyOtp()}
-                        >
-                          {isVerifyingOtp ? (
-                            <span className="inline-flex items-center">
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              กำลังยืนยัน...
-                            </span>
-                          ) : (
-                            "ยืนยัน"
-                          )}
-                        </Button>
-                      </div>
+		                required
+		                disabled={isSubmitting || (OTP_ENABLED && isPhoneVerified)}
+		                value={form.phone}
+		                onChange={(e) =>
+		                  setForm((prev) => ({ ...prev, phone: e.target.value }))
+		                }
+		              />
+                {OTP_ENABLED ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isSubmitting || isRequestingOtp || isPhoneVerified
+                        }
+                        onClick={() => void requestOtp()}
+                      >
+                        {isRequestingOtp ? (
+                          <span className="inline-flex items-center">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            กำลังส่ง...
+                          </span>
+                        ) : (
+                          "ส่ง OTP"
+                        )}
+                      </Button>
+                      {isPhoneVerified ? (
+                        <span className="text-xs font-medium text-emerald-700">
+                          ยืนยันแล้ว
+                        </span>
+                      ) : null}
                     </div>
-                    {otpStatus ? (
-                      <p className="text-xs text-muted-foreground">{otpStatus}</p>
+                    {!isPhoneVerified ? (
+                      <div className="grid gap-2">
+                        <div className="grid gap-1">
+                          <Label htmlFor="otp" className="text-xs">
+                            OTP (6 หลัก)
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id="otp"
+                              name="otp"
+                              inputMode="numeric"
+                              placeholder="123456"
+                              value={otpCode}
+                              disabled={isSubmitting || isVerifyingOtp}
+                              onChange={(e) => setOtpCode(e.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={isSubmitting || isVerifyingOtp}
+                              onClick={() => void verifyOtp()}
+                            >
+                              {isVerifyingOtp ? (
+                                <span className="inline-flex items-center">
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  กำลังยืนยัน...
+                                </span>
+                              ) : (
+                                "ยืนยัน"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        {otpStatus ? (
+                          <p className="text-xs text-muted-foreground">
+                            {otpStatus}
+                          </p>
+                        ) : null}
+                        {otpError ? (
+                          <p className="text-xs text-destructive">{otpError}</p>
+                        ) : null}
+                      </div>
                     ) : null}
-                    {otpError ? (
-                      <p className="text-xs text-destructive">{otpError}</p>
-                    ) : null}
-                  </div>
+                  </>
                 ) : null}
-	            </div>
+		            </div>
             <div className="grid gap-2">
               <Label>Register Type</Label>
               <Select
@@ -703,14 +721,14 @@ export default function RegisterPage() {
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
 	          <CardFooter className="flex flex-col items-end gap-2">
-	            <Button
-	              type="submit"
-	              disabled={
-	                isSubmitting ||
-	                canCallWeHomeFromBrowser === null ||
-	                !isPhoneVerified
-	              }
-	            >
+		            <Button
+		              type="submit"
+		              disabled={
+		                isSubmitting ||
+		                canCallWeHomeFromBrowser === null ||
+		                (OTP_ENABLED && !isPhoneVerified)
+		              }
+		            >
 	              {isSubmitting ? (
 	                <span className="inline-flex items-center">
 	                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
