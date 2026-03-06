@@ -84,6 +84,12 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitStatus, setSubmitStatus] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [otpStatus, setOtpStatus] = React.useState<string | null>(null);
+  const [otpError, setOtpError] = React.useState<string | null>(null);
+  const [isRequestingOtp, setIsRequestingOtp] = React.useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = React.useState(false);
+  const [otpCode, setOtpCode] = React.useState("");
+  const [isPhoneVerified, setIsPhoneVerified] = React.useState(false);
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
   const [mastersError, setMastersError] = React.useState<{
     registerType?: string;
@@ -194,6 +200,117 @@ export default function RegisterPage() {
     if (canCallWeHomeFromBrowser !== true) return;
     void loadMasters();
   }, [canCallWeHomeFromBrowser, loadMasters]);
+
+  React.useEffect(() => {
+    // reset OTP state when phone changes
+    setIsPhoneVerified(false);
+    setOtpCode("");
+    setOtpError(null);
+    setOtpStatus(null);
+  }, [form.phone]);
+
+  async function requestOtp() {
+    setOtpError(null);
+    setOtpStatus(null);
+
+    const phone = form.phone.trim();
+    if (!phone) {
+      setOtpError("กรุณากรอกเบอร์โทรก่อน");
+      return;
+    }
+
+    setIsRequestingOtp(true);
+    try {
+      const res = await fetch("/api/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { ok: true; expiresInSec?: number; code?: string }
+        | { ok: false; error: string }
+        | null;
+
+      if (res.ok && json && json.ok) {
+        setOtpStatus("ส่ง OTP แล้ว (อายุ 5 นาที)");
+        if (json.code) setOtpStatus(`DEV OTP: ${json.code}`);
+        return;
+      }
+
+      if (json && json.ok === false && json.error === "PHONE_TAKEN") {
+        setOtpError("เบอร์โทรนี้ถูกใช้งานแล้ว");
+        return;
+      }
+      if (json && json.ok === false && json.error === "TOO_MANY_REQUESTS") {
+        setOtpError("ขอ OTP บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่");
+        return;
+      }
+      if (json && json.ok === false && json.error === "INVALID_PHONE") {
+        setOtpError("รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็น 0xxxxxxxxx)");
+        return;
+      }
+
+      setOtpError("ส่ง OTP ไม่สำเร็จ");
+    } catch {
+      setOtpError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setIsRequestingOtp(false);
+    }
+  }
+
+  async function verifyOtp() {
+    setOtpError(null);
+    setOtpStatus(null);
+
+    const phone = form.phone.trim();
+    const code = otpCode.trim();
+    if (!phone) {
+      setOtpError("กรุณากรอกเบอร์โทรก่อน");
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setOtpError("กรุณากรอก OTP 6 หลัก");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { ok: true }
+        | { ok: false; error: string }
+        | null;
+
+      if (res.ok && json && json.ok) {
+        setIsPhoneVerified(true);
+        setOtpStatus("ยืนยันเบอร์โทรสำเร็จ");
+        return;
+      }
+
+      if (json && json.ok === false && json.error === "OTP_INVALID") {
+        setOtpError("OTP ไม่ถูกต้อง");
+        return;
+      }
+      if (json && json.ok === false && json.error === "OTP_NOT_FOUND") {
+        setOtpError("ไม่พบ OTP หรือหมดอายุแล้ว กรุณาขอใหม่");
+        return;
+      }
+      if (json && json.ok === false && json.error === "OTP_LOCKED") {
+        setOtpError("ลองผิดหลายครั้ง กรุณาขอ OTP ใหม่");
+        return;
+      }
+
+      setOtpError("ยืนยัน OTP ไม่สำเร็จ");
+    } catch {
+      setOtpError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  }
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <Card className="w-full max-w-md">
@@ -209,10 +326,15 @@ export default function RegisterPage() {
 		            setIsSubmitting(true);
 
 		            try {
+		              if (!isPhoneVerified) {
+		                setError("กรุณายืนยันเบอร์โทรด้วย OTP ก่อนสมัคร");
+		                return;
+		              }
+
 		              const preflight = await fetch("/api/register/preflight", {
 		                method: "POST",
-	                headers: { "Content-Type": "application/json" },
-	                body: JSON.stringify({ phone: form.phone }),
+		                headers: { "Content-Type": "application/json" },
+		                body: JSON.stringify({ phone: form.phone }),
 	              }).then((r) => r.json().catch(() => null));
 
 		              if (preflight && preflight.ok === false && preflight.error === "PHONE_TAKEN") {
@@ -412,23 +534,87 @@ export default function RegisterPage() {
                 }
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="phone">เบอร์โทร</Label>
-              <Input
+	            <div className="grid gap-2">
+	              <Label htmlFor="phone">เบอร์โทร</Label>
+	              <Input
                 id="phone"
                 name="phone"
                 type="tel"
                 placeholder="เช่น 0812345678"
                 autoComplete="tel"
                 inputMode="tel"
-                required
-                disabled={isSubmitting}
-                value={form.phone}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, phone: e.target.value }))
-                }
-              />
-            </div>
+	                required
+	                disabled={isSubmitting || isPhoneVerified}
+	                value={form.phone}
+	                onChange={(e) =>
+	                  setForm((prev) => ({ ...prev, phone: e.target.value }))
+	                }
+	              />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSubmitting || isRequestingOtp || isPhoneVerified}
+                    onClick={() => void requestOtp()}
+                  >
+                    {isRequestingOtp ? (
+                      <span className="inline-flex items-center">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        กำลังส่ง...
+                      </span>
+                    ) : (
+                      "ส่ง OTP"
+                    )}
+                  </Button>
+                  {isPhoneVerified ? (
+                    <span className="text-xs font-medium text-emerald-700">
+                      ยืนยันแล้ว
+                    </span>
+                  ) : null}
+                </div>
+                {!isPhoneVerified ? (
+                  <div className="grid gap-2">
+                    <div className="grid gap-1">
+                      <Label htmlFor="otp" className="text-xs">
+                        OTP (6 หลัก)
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="otp"
+                          name="otp"
+                          inputMode="numeric"
+                          placeholder="123456"
+                          value={otpCode}
+                          disabled={isSubmitting || isVerifyingOtp}
+                          onChange={(e) => setOtpCode(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isSubmitting || isVerifyingOtp}
+                          onClick={() => void verifyOtp()}
+                        >
+                          {isVerifyingOtp ? (
+                            <span className="inline-flex items-center">
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              กำลังยืนยัน...
+                            </span>
+                          ) : (
+                            "ยืนยัน"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    {otpStatus ? (
+                      <p className="text-xs text-muted-foreground">{otpStatus}</p>
+                    ) : null}
+                    {otpError ? (
+                      <p className="text-xs text-destructive">{otpError}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+	            </div>
             <div className="grid gap-2">
               <Label>Register Type</Label>
               <Select
@@ -517,7 +703,14 @@ export default function RegisterPage() {
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
 	          <CardFooter className="flex flex-col items-end gap-2">
-	            <Button type="submit" disabled={isSubmitting || canCallWeHomeFromBrowser === null}>
+	            <Button
+	              type="submit"
+	              disabled={
+	                isSubmitting ||
+	                canCallWeHomeFromBrowser === null ||
+	                !isPhoneVerified
+	              }
+	            >
 	              {isSubmitting ? (
 	                <span className="inline-flex items-center">
 	                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -79,6 +79,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INVALID_INPUT" }, { status: 400 });
   }
 
+  // Require OTP verified recently to prevent bypassing client checks.
+  const verifiedCutoff = new Date(Date.now() - 30 * 60_000);
+  const otp = await prisma.phoneOtp.findFirst({
+    where: {
+      mobile: phone,
+      verifiedAt: { gte: verifiedCutoff },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, verifiedAt: true },
+  });
+
+  if (!otp) {
+    return NextResponse.json({ ok: false, error: "OTP_REQUIRED" }, { status: 401 });
+  }
+
   const wehome = body?.wehomeResponse as InsertUpdateCustomerResponse | undefined;
   const first = Array.isArray(wehome?.data) ? wehome?.data?.[0] : undefined;
   if (!wehome || wehome.status !== 200 || !first) {
@@ -198,6 +213,10 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
+  // consume otp (single-use)
+  await prisma.phoneOtp.deleteMany({
+    where: { mobile: phone },
+  });
+
   return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
 }
-

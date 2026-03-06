@@ -129,3 +129,18 @@ model Coupon {
 
   @@map("coupons")
 }
+
+model PhoneOtp {
+  id String @id @default(cuid())
+
+  mobile     String
+  codeHash   String
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  attempts   Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([mobile, expiresAt])
+  @@map("phone_otps")
+}

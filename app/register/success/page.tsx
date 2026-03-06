@@ -94,17 +94,6 @@ export default async function RegisterSuccessPage({
 		                      </div>
 		                    </div>
 
-		                    <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 px-3 py-2">
-		                      <div className="text-xs font-medium text-orange-700">
-		                        ส่วนลด
-		                      </div>
-		                      <div className="mt-1 text-2xl font-semibold text-orange-900">
-		                        {typeof c.discountValue === "number"
-		                          ? `฿${new Intl.NumberFormat("th-TH").format(c.discountValue)}`
-		                          : "-"}
-		                      </div>
-		                    </div>
-
 		                    <div className="mt-3">
 		                      <CouponBarcodeTabs
 		                        couponBarcode={c.couponBarcode}
