@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,8 +47,21 @@ function extractOptions(
     .filter((x): x is Option => Boolean(x));
 }
 
+function extractError(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  return typeof record.error === "string" && record.error.trim()
+    ? record.error.trim()
+    : null;
+}
+
 export default function LoginPage() {
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
+  const [mastersError, setMastersError] = React.useState<{
+    registerType?: string;
+    gender?: string;
+    customerType?: string;
+  }>({});
   const [registerTypes, setRegisterTypes] = React.useState<Option[]>([]);
   const [genders, setGenders] = React.useState<Option[]>([]);
   const [customerTypes, setCustomerTypes] = React.useState<Option[]>([]);
@@ -59,38 +73,43 @@ export default function LoginPage() {
     customerTypeId: "1",
   });
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const loadMasters = React.useCallback(async () => {
+    setIsLoadingMasters(true);
+    setMastersError({});
 
-    const load = async () => {
-      try {
-        const [rt, g, ct] = await Promise.all([
-          fetch("/api/wehome/master/register-type").then((r) => r.json()),
-          fetch("/api/wehome/master/gender").then((r) => r.json()),
-          fetch("/api/wehome/master/customer-type").then((r) => r.json()),
-        ]);
+    try {
+      const [rt, g, ct] = await Promise.all([
+        fetch("/api/wehome/master/register-type").then((r) => r.json()),
+        fetch("/api/wehome/master/gender").then((r) => r.json()),
+        fetch("/api/wehome/master/customer-type").then((r) => r.json()),
+      ]);
 
-        if (cancelled) return;
+      setRegisterTypes(extractOptions(rt, "type_id", "type_name"));
+      setGenders(extractOptions(g, "gender_id", "gender_name"));
+      setCustomerTypes(extractOptions(ct, "type_id", "type_name"));
 
-        setRegisterTypes(extractOptions(rt, "type_id", "type_name"));
-        setGenders(extractOptions(g, "gender_id", "gender_name"));
-        setCustomerTypes(extractOptions(ct, "type_id", "type_name"));
-      } catch {
-        if (!cancelled) {
-          setRegisterTypes([]);
-          setGenders([]);
-          setCustomerTypes([]);
-        }
-      } finally {
-        if (!cancelled) setIsLoadingMasters(false);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
+      setMastersError({
+        registerType: extractError(rt) ?? undefined,
+        gender: extractError(g) ?? undefined,
+        customerType: extractError(ct) ?? undefined,
+      });
+    } catch {
+      setRegisterTypes([]);
+      setGenders([]);
+      setCustomerTypes([]);
+      setMastersError({
+        registerType: "โหลด Register Type ไม่สำเร็จ",
+        gender: "โหลด Gender ไม่สำเร็จ",
+        customerType: "โหลด Customer Type ไม่สำเร็จ",
+      });
+    } finally {
+      setIsLoadingMasters(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    void loadMasters();
+  }, [loadMasters]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
@@ -105,6 +124,36 @@ export default function LoginPage() {
           }}
         >
           <CardContent className="grid gap-4">
+            {mastersError.registerType ||
+            mastersError.gender ||
+            mastersError.customerType ? (
+              <Alert variant="destructive">
+                <AlertTitle>โหลดข้อมูลสำหรับ Dropdown ไม่สำเร็จ</AlertTitle>
+                <AlertDescription>
+                  <div className="grid gap-1">
+                    {mastersError.registerType ? (
+                      <div>Register Type: {mastersError.registerType}</div>
+                    ) : null}
+                    {mastersError.gender ? (
+                      <div>Gender: {mastersError.gender}</div>
+                    ) : null}
+                    {mastersError.customerType ? (
+                      <div>Customer Type: {mastersError.customerType}</div>
+                    ) : null}
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void loadMasters()}
+                      >
+                        ลองโหลดใหม่
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="phone">เบอร์โทร</Label>
               <Input
@@ -142,6 +191,11 @@ export default function LoginPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {mastersError.registerType ? (
+                <p className="text-xs text-destructive">
+                  {mastersError.registerType}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid gap-2">
@@ -164,6 +218,9 @@ export default function LoginPage() {
                   )}
                 </SelectContent>
               </Select>
+              {mastersError.gender ? (
+                <p className="text-xs text-destructive">{mastersError.gender}</p>
+              ) : null}
             </div>
 
             <div className="grid gap-2">
@@ -189,6 +246,11 @@ export default function LoginPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {mastersError.customerType ? (
+                <p className="text-xs text-destructive">
+                  {mastersError.customerType}
+                </p>
+              ) : null}
             </div>
           </CardContent>
           <CardFooter className="justify-end">
