@@ -41,8 +41,8 @@ export async function GET() {
     ) {
       return NextResponse.json({
         options: FALLBACK_OPTIONS,
-        warning:
-          "WeHome API ถูก Cloudflare บล็อกบนสภาพแวดล้อม server-to-server (เช่น Vercel). ใช้ข้อมูลสำรองชั่วคราว",
+        warning: "ใช้ข้อมูลสำรองชั่วคราว",
+        warningCode: "CLOUDFLARE_CHALLENGE",
         upstreamStatus: e.status,
         debug,
       });

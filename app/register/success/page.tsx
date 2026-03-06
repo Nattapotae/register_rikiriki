@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { BadgePercent, CalendarDays, StickyNote } from "lucide-react";
+import { CalendarDays, StickyNote } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,15 +67,15 @@ export default async function RegisterSuccessPage({
               </div>
 	            ) : (
 	              <div className="grid gap-3 md:grid-cols-2">
-                {customer.coupons.map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-lg border border-border bg-card p-4"
-                  >
-	                    <div className="flex items-start justify-between gap-3">
-	                      <div className="min-w-0">
-	                        <div className="truncate text-sm font-semibold text-foreground">
-	                          {c.goodsName || c.typeName || "Coupon"}
+	                {customer.coupons.map((c) => (
+	                  <div
+	                    key={c.id}
+	                    className="rounded-lg border border-orange-200 bg-orange-50/40 p-4"
+	                  >
+		                    <div className="flex items-start justify-between gap-3">
+		                      <div className="min-w-0">
+		                        <div className="truncate text-sm font-semibold text-foreground">
+		                          {c.goodsName || c.typeName || "Coupon"}
 	                        </div>
 	                        <div className="mt-1 truncate text-xs text-muted-foreground">
 	                          {c.saleDocno ? c.saleDocno : "SALE -"}{" "}
@@ -91,12 +91,23 @@ export default async function RegisterSuccessPage({
 	                        <Badge variant={c.active ? "default" : "destructive"}>
 	                          {c.active ? "Active" : "Inactive"}
 	                        </Badge>
-	                      </div>
-	                    </div>
+		                      </div>
+		                    </div>
 
-	                    <div className="mt-3">
-	                      <CouponBarcodeTabs couponBarcode={c.couponBarcode} />
-	                    </div>
+		                    <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 px-3 py-2">
+		                      <div className="text-xs font-medium text-orange-700">
+		                        ส่วนลด
+		                      </div>
+		                      <div className="mt-1 text-2xl font-semibold text-orange-900">
+		                        {typeof c.discountValue === "number"
+		                          ? `฿${new Intl.NumberFormat("th-TH").format(c.discountValue)}`
+		                          : "-"}
+		                      </div>
+		                    </div>
+
+		                    <div className="mt-3">
+		                      <CouponBarcodeTabs couponBarcode={c.couponBarcode} />
+		                    </div>
 
 	                    {c.imgUrl ? (
 	                      // Use <img> to avoid Next/Image remotePatterns config for external URLs.
@@ -109,45 +120,34 @@ export default async function RegisterSuccessPage({
 	                      />
 	                    ) : null}
 
-	                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-md border border-border bg-background px-3 py-2">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <BadgePercent className="h-4 w-4" />
-                          discount_value
-                        </div>
-                        <div className="mt-1 text-sm font-semibold text-foreground">
-                          {typeof c.discountValue === "number"
-                            ? c.discountValue.toLocaleString()
-                            : "-"}
-                        </div>
-                      </div>
-                      <div className="rounded-md border border-border bg-background px-3 py-2">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <CalendarDays className="h-4 w-4" />
-                          date_expire
-                        </div>
-                        <div className="mt-1 text-sm font-semibold text-foreground">
-                          {c.dateExpireLabel
-                            ? c.dateExpireLabel
-                            : c.dateExpire
-                              ? c.dateExpire.toISOString().slice(0, 10)
-                              : "-"}
-                        </div>
-                      </div>
-                      <div className="rounded-md border border-border bg-background px-3 py-2 sm:col-span-2">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <StickyNote className="h-4 w-4" />
-                          doc_note
-                        </div>
-                        <div className="mt-1 break-words text-sm text-foreground">
-                          {c.docNote || "-"}
+		                    <div className="mt-3 grid gap-2">
+	                      <div className="rounded-md border border-border bg-background px-3 py-2">
+	                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+	                          <CalendarDays className="h-4 w-4" />
+	                          หมดอายุ
+	                        </div>
+	                        <div className="mt-1 text-sm font-semibold text-foreground">
+	                          {c.dateExpireLabel
+	                            ? c.dateExpireLabel
+	                            : c.dateExpire
+	                              ? c.dateExpire.toISOString().slice(0, 10)
+	                              : "-"}
 	                        </div>
 	                      </div>
-	                    </div>
-	                  </div>
-	                ))}
-	              </div>
-	            )}
+	                      <div className="rounded-md border border-border bg-background px-3 py-2">
+	                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+	                          <StickyNote className="h-4 w-4" />
+	                          หมายเหตุ
+	                        </div>
+	                        <div className="mt-1 break-words text-sm text-foreground">
+	                          {c.docNote || "-"}
+		                        </div>
+		                      </div>
+		                    </div>
+		                  </div>
+		                ))}
+		              </div>
+		            )}
           </div>
 
           <div className="flex justify-end">

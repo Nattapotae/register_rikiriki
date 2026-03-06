@@ -3,6 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
+import { Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,6 +82,7 @@ function extractMessage(payload: unknown, key: "error" | "warning"): string | nu
 export default function RegisterPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitStatus, setSubmitStatus] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoadingMasters, setIsLoadingMasters] = React.useState(true);
   const [mastersError, setMastersError] = React.useState<{
@@ -218,22 +221,23 @@ export default function RegisterPage() {
           <CardDescription>กรอกข้อมูลเพื่อสมัครสมาชิก</CardDescription>
         </CardHeader>
         <form
-	          onSubmit={async (e) => {
-	            e.preventDefault();
-	            setError(null);
-	            setIsSubmitting(true);
+		          onSubmit={async (e) => {
+		            e.preventDefault();
+		            setError(null);
+		            setSubmitStatus("กำลังตรวจสอบเบอร์โทร...");
+		            setIsSubmitting(true);
 
-	            try {
-	              const preflight = await fetch("/api/register/preflight", {
-	                method: "POST",
+		            try {
+		              const preflight = await fetch("/api/register/preflight", {
+		                method: "POST",
 	                headers: { "Content-Type": "application/json" },
 	                body: JSON.stringify({ phone: form.phone }),
 	              }).then((r) => r.json().catch(() => null));
 
-	              if (preflight && preflight.ok === false && preflight.error === "PHONE_TAKEN") {
-	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
-	                return;
-	              }
+		              if (preflight && preflight.ok === false && preflight.error === "PHONE_TAKEN") {
+		                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
+		                return;
+		              }
 
 		              if (!wehomeConfig) {
 		                setError(
@@ -242,9 +246,10 @@ export default function RegisterPage() {
 		                return;
 		              }
 
-	              const parts = form.fullName.trim().split(/\s+/).filter(Boolean);
-	              const firstName = parts[0] ?? "";
-	              const lastName = parts.slice(1).join(" ");
+		              setSubmitStatus("กำลังส่งข้อมูลไป WeHome...");
+		              const parts = form.fullName.trim().split(/\s+/).filter(Boolean);
+		              const firstName = parts[0] ?? "";
+		              const lastName = parts.slice(1).join(" ");
 
 	              const wehomeRequest = {
 	                customer_id: "0",
@@ -318,20 +323,21 @@ export default function RegisterPage() {
 		                  { method: "POST", body: JSON.stringify(wehomeRequest) }
 		                );
 		              } catch (e) {
-	                if (e instanceof WeHomeBrowserError && e.body.includes("CLOUDFLARE_CHALLENGE")) {
-	                  setError(
-	                    "WeHome API ตอบกลับเป็นหน้า Cloudflare (Just a moment). ถ้ายังไม่ผ่าน ให้ลองเปิด API ในแท็บใหม่ 1 ครั้ง แล้วกลับมากดสมัครใหม่"
-	                  );
-	                  return;
-	                }
-	                setError("เรียก WeHome API ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-	                return;
-	              }
+		                if (e instanceof WeHomeBrowserError && e.body.includes("CLOUDFLARE_CHALLENGE")) {
+		                  setError(
+		                    "WeHome API ตอบกลับเป็นหน้า Cloudflare (Just a moment). ถ้ายังไม่ผ่าน ให้ลองเปิด API ในแท็บใหม่ 1 ครั้ง แล้วกลับมากดสมัครใหม่"
+		                  );
+		                  return;
+		                }
+		                setError("เรียก WeHome API ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+		                return;
+		              }
 
-	              const finalizeRes = await fetch("/api/register/finalize", {
-	                method: "POST",
-	                headers: { "Content-Type": "application/json" },
-	                body: JSON.stringify({
+		              setSubmitStatus("กำลังบันทึกลงฐานข้อมูล...");
+		              const finalizeRes = await fetch("/api/register/finalize", {
+		                method: "POST",
+		                headers: { "Content-Type": "application/json" },
+		                body: JSON.stringify({
 	                  form,
 	                  wehomeRequest,
 	                  wehomeResponse,
@@ -343,24 +349,26 @@ export default function RegisterPage() {
 	                | { ok: false; error: string }
 	                | null;
 
-	              if (finalizeRes.ok && finalize && finalize.ok && typeof finalize.id === "string") {
-	                router.push(`/register/success?id=${encodeURIComponent(finalize.id)}`);
-	                return;
-	              }
+		              if (finalizeRes.ok && finalize && finalize.ok && typeof finalize.id === "string") {
+		                setSubmitStatus("สำเร็จ กำลังไปหน้าคูปอง...");
+		                router.push(`/register/success?id=${encodeURIComponent(finalize.id)}`);
+		                return;
+		              }
 
 	              if (finalize && finalize.ok === false && finalize.error === "PHONE_TAKEN") {
 	                setError("เบอร์โทรนี้ถูกใช้งานแล้ว");
 	                return;
 	              }
 
-	              setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-	            } catch {
-	              setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง");
-	            } finally {
-	              setIsSubmitting(false);
-	            }
-	          }}
-        >
+		              setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+		            } catch {
+		              setError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง");
+		            } finally {
+		              setIsSubmitting(false);
+		              setSubmitStatus(null);
+		            }
+		          }}
+	        >
           <CardContent className="grid gap-4">
             {mastersWarning.registerType ||
             mastersWarning.gender ||
@@ -570,13 +578,22 @@ export default function RegisterPage() {
 	            </div>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </CardContent>
-          <CardFooter className="flex flex-col items-end gap-2">
-	            <Button
-	              type="submit"
-	              disabled={isSubmitting || canCallWeHomeFromBrowser === null}
-	            >
-	              {isSubmitting ? "กำลังบันทึก..." : "สมัครสมาชิก"}
+	          <CardFooter className="flex flex-col items-end gap-2">
+	            <Button type="submit" disabled={isSubmitting || canCallWeHomeFromBrowser === null}>
+	              {isSubmitting ? (
+	                <span className="inline-flex items-center">
+	                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+	                  กำลังสมัคร...
+	                </span>
+	              ) : (
+	                "สมัครสมาชิก"
+	              )}
 	            </Button>
+	            {isSubmitting && submitStatus ? (
+	              <p className="text-right text-xs text-muted-foreground">
+	                {submitStatus}
+	              </p>
+	            ) : null}
 	            {canCallWeHomeFromBrowser === null ? (
 	              <p className="text-right text-xs text-muted-foreground">
 	                กำลังเตรียม WeHome config...
