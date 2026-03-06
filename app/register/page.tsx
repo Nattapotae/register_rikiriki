@@ -90,11 +90,6 @@ export default function RegisterPage() {
     gender?: string;
     customerType?: string;
   }>({});
-  const [mastersWarning, setMastersWarning] = React.useState<{
-    registerType?: string;
-    gender?: string;
-    customerType?: string;
-  }>({});
   const [registerTypes, setRegisterTypes] = React.useState<Option[]>([]);
   const [genders, setGenders] = React.useState<Option[]>([]);
   const [customerTypes, setCustomerTypes] = React.useState<Option[]>([]);
@@ -142,44 +137,34 @@ export default function RegisterPage() {
   const loadMasters = React.useCallback(async () => {
     setIsLoadingMasters(true);
     setMastersError({});
-    setMastersWarning({});
 
     try {
-      let rt: unknown;
-      let g: unknown;
-      let ct: unknown;
-
-      if (wehomeConfig) {
-        try {
-          [rt, g, ct] = await Promise.all([
-            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
-              wehomeConfig,
-              "/thirdParty/member/master/getRegisterType"
-            ),
-            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
-              wehomeConfig,
-              "/thirdParty/member/master/getGender"
-            ),
-            wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
-              wehomeConfig,
-              "/thirdParty/member/master/getCustomerType"
-            ),
-          ]);
-        } catch (e) {
-          console.warn("[wehome browser] master fetch failed; fallback to local api", e);
-          [rt, g, ct] = await Promise.all([
-            fetch("/api/wehome/master/register-type").then((r) => r.json()),
-            fetch("/api/wehome/master/gender").then((r) => r.json()),
-            fetch("/api/wehome/master/customer-type").then((r) => r.json()),
-          ]);
-        }
-      } else {
-        [rt, g, ct] = await Promise.all([
-          fetch("/api/wehome/master/register-type").then((r) => r.json()),
-          fetch("/api/wehome/master/gender").then((r) => r.json()),
-          fetch("/api/wehome/master/customer-type").then((r) => r.json()),
-        ]);
+      if (!wehomeConfig) {
+        setRegisterTypes([]);
+        setGenders([]);
+        setCustomerTypes([]);
+        setMastersError({
+          registerType: "ยังไม่ได้ตั้งค่า WeHome token/companyId",
+          gender: "ยังไม่ได้ตั้งค่า WeHome token/companyId",
+          customerType: "ยังไม่ได้ตั้งค่า WeHome token/companyId",
+        });
+        return;
       }
+
+      const [rt, g, ct] = await Promise.all([
+        wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+          wehomeConfig,
+          "/thirdParty/member/master/getRegisterType"
+        ),
+        wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+          wehomeConfig,
+          "/thirdParty/member/master/getGender"
+        ),
+        wehomeBrowserFetchJsonWithConfig<WeHomeApiEnvelope<unknown>>(
+          wehomeConfig,
+          "/thirdParty/member/master/getCustomerType"
+        ),
+      ]);
 
       setRegisterTypes(extractOptions(rt, "type_id", "type_name"));
       setGenders(extractOptions(g, "gender_id", "gender_name"));
@@ -190,29 +175,25 @@ export default function RegisterPage() {
         gender: extractMessage(g, "error") ?? undefined,
         customerType: extractMessage(ct, "error") ?? undefined,
       });
-      setMastersWarning({
-        registerType: extractMessage(rt, "warning") ?? undefined,
-        gender: extractMessage(g, "warning") ?? undefined,
-        customerType: extractMessage(ct, "warning") ?? undefined,
-      });
-    } catch {
+    } catch (e) {
       setRegisterTypes([]);
       setGenders([]);
       setCustomerTypes([]);
+      const message = e instanceof Error ? e.message : "โหลดข้อมูลจริงจาก WeHome ไม่สำเร็จ";
       setMastersError({
-        registerType: "โหลด Register Type ไม่สำเร็จ",
-        gender: "โหลด Gender ไม่สำเร็จ",
-        customerType: "โหลด Customer Type ไม่สำเร็จ",
+        registerType: message,
+        gender: message,
+        customerType: message,
       });
-      setMastersWarning({});
     } finally {
       setIsLoadingMasters(false);
     }
   }, [wehomeConfig]);
 
   React.useEffect(() => {
+    if (canCallWeHomeFromBrowser !== true) return;
     void loadMasters();
-  }, [loadMasters]);
+  }, [canCallWeHomeFromBrowser, loadMasters]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <Card className="w-full max-w-md">
@@ -370,37 +351,6 @@ export default function RegisterPage() {
 		          }}
 	        >
           <CardContent className="grid gap-4">
-            {mastersWarning.registerType ||
-            mastersWarning.gender ||
-            mastersWarning.customerType ? (
-              <Alert>
-                <AlertTitle>ใช้ข้อมูลสำรองสำหรับ Dropdown</AlertTitle>
-                <AlertDescription>
-                  <div className="grid gap-1">
-                    {mastersWarning.registerType ? (
-                      <div>Register Type: {mastersWarning.registerType}</div>
-                    ) : null}
-                    {mastersWarning.gender ? (
-                      <div>Gender: {mastersWarning.gender}</div>
-                    ) : null}
-                    {mastersWarning.customerType ? (
-                      <div>Customer Type: {mastersWarning.customerType}</div>
-                    ) : null}
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void loadMasters()}
-                      >
-                        ลองโหลดใหม่
-                      </Button>
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
             {mastersError.registerType ||
             mastersError.gender ||
             mastersError.customerType ? (
@@ -506,10 +456,6 @@ export default function RegisterPage() {
 	                <p className="text-xs text-destructive">
 	                  {mastersError.registerType}
 	                </p>
-	              ) : mastersWarning.registerType ? (
-	                <p className="text-xs text-muted-foreground">
-	                  {mastersWarning.registerType}
-	                </p>
 	              ) : null}
 	            </div>
             <div className="grid gap-2">
@@ -537,10 +483,6 @@ export default function RegisterPage() {
 	              </Select>
 	              {mastersError.gender ? (
 	                <p className="text-xs text-destructive">{mastersError.gender}</p>
-	              ) : mastersWarning.gender ? (
-	                <p className="text-xs text-muted-foreground">
-	                  {mastersWarning.gender}
-	                </p>
 	              ) : null}
 	            </div>
             <div className="grid gap-2">
@@ -569,10 +511,6 @@ export default function RegisterPage() {
 	              {mastersError.customerType ? (
 	                <p className="text-xs text-destructive">
 	                  {mastersError.customerType}
-	                </p>
-	              ) : mastersWarning.customerType ? (
-	                <p className="text-xs text-muted-foreground">
-	                  {mastersWarning.customerType}
 	                </p>
 	              ) : null}
 	            </div>
