@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
+// const DEFAULT_BASE_URL = "https://api-pos-wehome-test.gbhpos.com";
 
 export type WeHomeApiEnvelope<T> = {
   status?: number;
@@ -41,7 +41,7 @@ function truncate(text: string, max = 600) {
 }
 
 export function getWeHomeBrowserBaseUrl() {
-  return process.env.NEXT_PUBLIC_WEHOME_API_BASE_URL?.trim() || DEFAULT_BASE_URL;
+  return process.env.NEXT_PUBLIC_WEHOME_API_BASE_URL?.trim();
 }
 
 export function getWeHomeBrowserAuthHeaders(): Record<string, string> {
