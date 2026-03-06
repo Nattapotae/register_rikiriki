@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { type WeHomeApiEnvelope, wehomeFetchJson } from "@/lib/wehome-api";
+import { WeHomeApiError, type WeHomeApiEnvelope, wehomeFetchJson } from "@/lib/wehome-api";
 
 type RegisterPayload = {
   fullName: unknown;
@@ -272,10 +272,19 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR" },
-      { status: 500 }
-    );
+  } catch (e) {
+    if (e instanceof WeHomeApiError) {
+      console.error("[wehome] InsertUpdateCustomer failed", {
+        status: e.status,
+        body: e.body,
+      });
+      return NextResponse.json(
+        { ok: false, error: "UPSTREAM_ERROR", upstreamStatus: e.status },
+        { status: 502 }
+      );
+    }
+
+    console.error("[register] server error", e);
+    return NextResponse.json({ ok: false, error: "SERVER_ERROR" }, { status: 500 });
   }
 }
